@@ -1,92 +1,205 @@
-\documentclass[10pt,twocolumn,a4paper]{article}
+\documentclass[twocolumn,10pt]{article}
+
+\usepackage{authblk}
+\usepackage{bera}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[margin=1.5cm]{geometry}
+\usepackage[a4paper,margin=2cm]{geometry}
 \usepackage{booktabs}
 \usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{hyperref}
-\usepackage{enumitem}
-\usepackage{titlesec}
-\usepackage{microtype}
+\usepackage{url}
+\usepackage{xspace}
+\usepackage{multirow}
 
-\titlespacing*{\section}{0pt}{1.4ex}{0.6ex}
-\titlespacing*{\subsection}{0pt}{1.0ex}{0.4ex}
-\setlength{\columnsep}{0.55cm}
+\newcommand{\tfidf}{TF-IDF\xspace}
+\newcommand{\cv}{CV\xspace}
+\newcommand{\svm}{SVM\xspace}
+\newcommand{\lr}{LR\xspace}
+\newcommand{\cnb}{CNB\xspace}
+\newcommand{\ros}{ROS\xspace}
+\newcommand{\spec}[1]{\textit{#1}}
 
-\title{\vspace{-1.3cm}\textbf{Help the Doctor: Clinical Specialty Classification via Cost-Sensitive Logistic Regression and Random Word Dropout}}
-\author{Group NUM -- Natural Language Processing (2026) -- Instituto Superior Técnico}
-\date{\vspace{-0.9cm}}
+% TITLE
+\title{Help the Doctor: How Much of Clinical Specialty Classification Is Reading the Text?}
+
+% AUTHORS
+\author{Group XX: Name~1 (25\%), Name~2 (25\%), Name~3 (25\%) and Name~4 (25\%)}
+\affil{Instituto Superior Técnico, Universidade de Lisboa}
+\date{}
 
 \begin{document}
+
 \maketitle
 
-\begin{abstract}
-\noindent Associating unstructured clinical notes with their corresponding medical specialty is a critical yet challenging Natural Language Processing (NLP) task due to severe class imbalance, overlapping surgical procedures, and noisy annotations. In this work, we address the 12-class medical specialty shared task. Moving beyond the weak TF-IDF baseline on case descriptions (37.70\% accuracy, 0.00\% min F1), we design a robust and highly interpretable pipeline based on weighted multi-field representations and a Balanced Logistic Regression classifier. To satisfy task constraints and prevent minority class collapse, we implement a Random Word Dropout data augmentation strategy. Evaluated via 5-fold stratified cross-validation on 2,613 valid clinical records, our system achieves an overall accuracy of \textbf{52.51\%} (well above the 49\% target) and elevates the worst-case per-class F1-score to \textbf{35.59\%} (surpassing the 25\% threshold across all 12 specialties).
-\end{abstract}
+\section{Introduction}
 
-\section{Introduction and Exploratory Data Analysis}
-The objective of this shared task is to automatically map clinical cases to one of 12 medical specialties. Each record comprises four textual fields: a brief \texttt{description}, the consultation/procedure \texttt{sample\_name}, the full free-text \texttt{transcription}, and a list of \texttt{keywords}. The test set contains 398 unlabelled clinical situations.
+The task is to assign one of 12 medical specialties to a clinical note described by four fields: \texttt{description}, \texttt{sample\_name}, \texttt{transcription} and \texttt{keywords}. When inspecting the data we found that two properties of the source corpus, MTSamples~\cite{mtsamples}, carry most of the label information: the \texttt{keywords} field usually starts with the name of the specialty, and many notes appear several times with a different specialty in each copy. This led to our research question:
 
-A systematic inspection of \texttt{train.csv} revealed three critical data properties:
-\begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
-    \item \textbf{Malformed Records:} Raw parsing of \texttt{train.csv} exposed 3 corrupted rows where unescaped line breaks caused narrative fragments to spill into the \texttt{medical\_specialty} label column. Filtering strictly for the 12 valid target specialties yields $N = 2,613$ clean training instances.
-    \item \textbf{Extreme Class Imbalance:} Class frequencies span an imbalance ratio of $35:1$. \textit{Surgery} accounts for 33.5\% of the entire corpus ($876$ instances). Conversely, minority specialties such as \textit{Psychiatry-Psychology} ($40$) and \textit{Dermatology} ($25$) are severely underrepresented.
-    \item \textbf{Multi-Specialty Overlap:} Inspecting raw transcriptions reveals identical clinical notes assigned to multiple specialties. Because invasive procedures in \textit{Orthopedic} or \textit{Neurosurgery} are surgical by nature, identical operative reports are duplicated under both \textit{Surgery} and the organ-specific specialty.
-\end{enumerate}
+\textbf{RQ:} \emph{How much of the attainable performance comes from these dataset artifacts rather than from the clinical text, and which data augmentation strategy helps the part of the problem that does require reading the text?}
 
-\section{Methodology}
-\subsection{Pre-processing and Feature Engineering}
-The reference baseline extracts word features solely from \texttt{description} using Porter stemming before training a Multinomial Naive Bayes classifier. However, aggressive stemming degrades clinical terminology by conflating distinct morphological suffixes, while ignoring \texttt{sample\_name}, \texttt{keywords}, and \texttt{transcription} discards vital diagnostic context. 
+\section{Data}
 
-To address missing values (\texttt{keywords} is missing in 15.4\% of instances) and varying field lengths, we normalize all four fields (lowercasing, retaining alphanumeric tokens) and construct a weighted text concatenation. We extract L2-normalized word-level TF-IDF $(1,2)$-grams ($\text{max\_features}=25,000$) with sublinear term-frequency scaling to dampen repetitive clinical templates.
+\subsection{Data Analysis}
 
-\subsection{Data Augmentation Process}
-Training linear classifiers on imbalanced data causes decision boundaries to skew toward majority classes. To satisfy the mandatory augmentation requirement and prevent minority class collapse, we designed a \textbf{Random Word Dropout} augmentation pipeline, applied strictly within the training folds during cross-validation:
-\begin{itemize}[noitemsep,topsep=2pt,leftmargin=*]
-    \item For every specialty with fewer than 150 training samples, we randomly sample existing instances to duplicate.
-    \item During duplication, we apply a stochastic word dropout function ($p = 0.15$) to the text.
-\end{itemize}
-This acts as a robust domain regularizer: randomly dropping 15\% of the words prevents the model from memorizing exact patient-specific ages or dosages in tiny classes like \textit{Dermatology}, forcing the classifier to rely on broader clinical vocabulary.
+\texttt{train.csv} has 2,616 rows. In 3 of them, unescaped line breaks place text fragments in the label column; we discard them, keeping $N=2{,}613$ notes. The test set has 398 notes. Median lengths are 405 words (transcription) and 16 words (description); 30 training notes (2 in test) have an empty transcription.
 
-\subsection{Classification Architecture}
-To maintain model interpretability while effectively handling the remaining class imbalance, we employ a \textbf{Logistic Regression} classifier equipped with inverse class-frequency weights (\texttt{class\_weight='balanced'}). This cost-sensitive learning approach penalizes misclassifications in minority classes much heavier than in majority classes, naturally pushing the F1-score of rare specialties above the 25\% threshold without requiring complex post-hoc threshold tuning.
+\textbf{Imbalance.} \spec{Surgery} has 876 notes (33.5\%), followed by \spec{Cardiovascular-Pulmonary} (299) and \spec{Orthopedic} (292); \spec{Psychiatry-Psychology} (40) and \spec{Dermatology} (25) are the smallest classes, a 35:1 ratio. The baseline (Table~\ref{tab:main}) has 0\% F1 in 7 classes.
 
-\section{Experimental Results}
-All models were evaluated using 5-fold Stratified Cross-Validation on \texttt{train.csv} ($N=2,613$).
+\textbf{Observation 1: the label is written in \texttt{keywords}.} In 2,172 notes (83.1\%) the first keyword is a specialty name, e.g.\ \texttt{``neurology, temporal lobe, brain tumor, ...''}. It coincides with the gold label in 2,171 of them (the exception is a note labelled \spec{General Medicine} with keyword \texttt{obstetrics / gynecology}). The same pattern occurs in 320 of the 398 test notes. It is the website category of the note: metadata, not clinical content.
 
-\begin{table}[htbp]
-\centering
-\resizebox{\columnwidth}{!}{%
-\begin{tabular}{lccc}
+\textbf{Observation 2: cross-listed duplicates with conflicting labels.} 1,469 training rows (56\%) share their transcription with at least one other row, forming 702 groups. In 701 of these groups the copies have \emph{different} labels: the website lists an operative report under \spec{Surgery} and also under the organ specialty. The most frequent pairs are \spec{Orthopedic}/\spec{Surgery} (118 groups), \spec{Cardiovascular-Pulmonary}/\spec{Surgery} (113) and \spec{Gastroenterology}/\spec{Surgery} (95). For instance, every note named \texttt{``Carpal Tunnel Release - $k$''} appears once as \spec{Orthopedic} and once as \spec{Surgery}. Both labels are clinically valid, so the task is partly multi-label presented as single-label: from the text alone, the two copies cannot be separated. 237 of the 398 test transcriptions also occur in \texttt{train.csv}.
+
+\subsection{Data Augmentation}
+
+Augmentation is applied only to the training part of each fold (never to evaluated notes). Every class with fewer than 150 training notes (\spec{Obstetrics-Gynecology}, \spec{Neurosurgery}, \spec{Ophthalmology}, \spec{Psychiatry-Psychology} and \spec{Dermatology}) is filled up to 150 notes with synthetic copies of randomly sampled notes of that class. We compare four strategies:
+(i)~\textbf{none};
+(ii)~\textbf{random oversampling (\ros)}: exact copies;
+(iii)~\textbf{word dropout}: copies in which each word of \texttt{description} and \texttt{transcription} is removed with probability 0.15 (the ``random deletion'' operation of EDA~\cite{wei2019eda});
+(iv)~\textbf{crossover}: a new transcription formed by the first half of one note and the second half of another note of the same class, which keeps the specialty vocabulary while creating unseen word combinations.
+We avoided synonym replacement: general thesauri do not cover clinical terms, and swapping an anatomy term changes the meaning.
+
+\section{Models}
+
+\textbf{Pre-processing.} Each field is lowercased; characters other than letters, digits, ``-'' and ``/'' are replaced by spaces. We do not remove stop words (negations such as ``no'' are relevant in clinical notes) and do not stem, since stemming merges distinct terms (e.g.\ \texttt{neurology}/\texttt{neurologic}). The four fields are concatenated and represented with word uni- and bigram \tfidf (sublinear term frequency, 25,000 most frequent $n$-grams, L2 norm).
+
+\textbf{Baseline.} Multinomial Naive Bayes over \tfidf of \texttt{description} with lowercasing and Porter stemming~\cite{porter1980}, as defined in the task.
+
+\textbf{Text-only classifiers.} To measure what the text alone supports, the specialty term is removed from the head of \texttt{keywords} before training and prediction. We compare three linear classifiers with different inductive biases:
+(1)~\textbf{Complement Naive Bayes} (\cnb, $\alpha=0.3$)~\cite{rennie2003cnb}, a generative model designed for imbalanced text, with no class weighting;
+(2)~\textbf{Logistic Regression} (\lr, L2, $C=1$), a discriminative probabilistic model;
+(3)~\textbf{Linear \svm} (hinge loss, $C=0.1$)~\cite{joachims1998svm}, a maximum-margin model.
+\lr and \svm use \texttt{class\_weight=balanced}, i.e.\ the loss of class $c$ is multiplied by $N/(12\,N_c)$.
+
+\textbf{Duplicate rule (artifact 2).} If the transcription of a note to classify is identical to one in the training data, the labels of those training copies are excluded and the classifier returns its highest-scoring \emph{remaining} class. This follows from Observation~2: a copy almost never repeats the label of another copy.
+
+\textbf{Keyword rule (artifact 1).} If the first keyword is a specialty name, it is returned as the prediction.
+
+\textbf{Hybrid system.} Keyword rule when applicable; otherwise text-only classifier with the duplicate rule. This is our final system. For comparison we also train each classifier on the \emph{full} fields (specialty term kept inside the bag of words).
+
+\section{Experimental Setup}
+
+All results are obtained with stratified 5-fold cross-validation (\cv) on the 2,613 training notes (seed 42): the out-of-fold predictions (each note predicted once by a model that did not see it) are our own test set; the duplicate rule only looks up the training folds. \texttt{test\_no\_labels.csv} is used only to produce \texttt{results.txt}. We report accuracy, macro-F1 and minimum per-class F1 (the two task criteria are accuracy $>49\%$ and minimum F1 $>25\%$).
+
+\subsection{Parameters/Hyperparameters}
+
+$C$ (inverse regularisation strength) and $\alpha$ (additive smoothing) were selected on the \cv macro-F1 of the text-only setting among $C\in\{0.05,0.1,0.3,0.5,1,3,10\}$ and $\alpha\in\{0.1,0.3,1\}$. Augmentation target: 150 notes per class; dropout probability 0.15. Implementation: scikit-learn~\cite{sklearn} (LIBLINEAR~\cite{fan2008liblinear} for \svm). The final model is trained on all 2,613 notes with the selected configuration (\svm + \ros).
+
+\section{Results}
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llccc}
 \toprule
-\textbf{Model Configuration} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Min F1} \\
+Setting & Model & Acc & Macro-F1 & Min-F1 \\
 \midrule
-1. Weak Baseline (MNB + Desc.) & 37.70\% & 11.89\% & 0.00\% \\
-\textbf{2. Balanced LogReg + Augmentation} & \textbf{52.51\%} & \textbf{54.65\%} & \textbf{35.59\%} \\
+Baseline & MNB (desc.) & 37.5 & 11.4 & 0.0 \\
+\midrule
+\multirow{3}{*}{Text-only}
+ & \cnb & 46.2 & 42.6 & 21.5 \\
+ & \lr  & 47.4 & 49.6 & 26.9 \\
+ & \svm & 47.2 & 50.6 & 29.7 \\
+\midrule
+Full fields & \lr & 52.4 & 54.0 & 28.6 \\
+            & \svm & 52.3 & 54.7 & 38.1 \\
+\midrule
+Text-only & \lr  & 76.4 & 74.0 & 45.7 \\
+\ + dup.\ rule & \svm & 77.2 & 74.9 & 50.0 \\
+\midrule
+Hybrid & \cnb & 93.6 & 92.0 & 78.3 \\
+(keyword +  & \lr & 94.9 & 94.4 & \textbf{81.9} \\
+\ dup.\ rule) & \svm & \textbf{94.9} & \textbf{94.6} & 81.6 \\
 \bottomrule
-\end{tabular}%
-}
-\caption{Overall 5-fold Stratified Cross-Validation metrics.}
-\label{tab:ablation}
+\end{tabular}
+\caption{5-fold \cv results (\%), all with \ros augmentation. ``Full fields'' keeps the specialty term inside \texttt{keywords}.}
+\label{tab:main}
 \end{table}
 
-As evidenced in Table \ref{tab:ablation}, the baseline collapses into predicting \textit{Surgery} for most cases, resulting in 0.00\% F1 on 7 out of 12 specialties. Incorporating all four fields, applying Word Dropout augmentation, and utilizing cost-sensitive Logistic Regression boosts overall accuracy to 52.51\% and lifts the minimum F1 to 35.59\%.
+Table~\ref{tab:main} answers the first part of the RQ. Using all four fields more than doubles the baseline macro-F1, but the text-only classifiers stay below the 49\% accuracy criterion. Keeping the specialty term in the concatenated bag of words adds only 5 points, because one token is diluted among 400 transcription words. The duplicate rule adds about 30 points and the keyword rule another 18. Table~\ref{tab:subset} breaks the hybrid \svm accuracy down by note type: the 296 notes without either artifact, the only ones where the decision depends entirely on the text, are classified with 61.5\% accuracy.
 
-\begin{figure}[htbp]
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lrcc}
+\toprule
+Subset of training notes & $n$ & Text-only & Hybrid \\
+\midrule
+Specialty keyword present & 2,172 & 46.2 & 99.95 \\
+No keyword, duplicated & 145 & 33.1 & 88.3 \\
+No keyword, unique & 296 & 61.5 & 61.5 \\
+\bottomrule
+\end{tabular}
+\caption{Accuracy (\%) of the \svm per subset (out-of-fold).}
+\label{tab:subset}
+\end{table}
+
+Table~\ref{tab:aug} answers the second part. Augmentation matters only for \cnb, the model without class weights: without it, \spec{Dermatology} is never predicted (minimum F1 0\%), and any of the three strategies raises macro-F1 by about 6 points. For \lr and \svm, whose loss is already reweighted, no strategy improves macro-F1 by more than 0.8 points over no augmentation, and crossover lowers the minimum F1 of \lr from 27.3\% to 20.0\%. Word dropout and crossover are not better than exact copies (\ros).
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{2}{c}{\cnb} & \multicolumn{2}{c}{\lr} & \multicolumn{2}{c}{\svm} \\
+Augmentation & M-F1 & Min & M-F1 & Min & M-F1 & Min \\
+\midrule
+None      & 35.3 & 0.0  & \textbf{50.6} & \textbf{27.3} & 49.8 & 29.2 \\
+\ros      & \textbf{42.6} & \textbf{21.5} & 49.6 & 26.9 & \textbf{50.6} & \textbf{29.7} \\
+Dropout   & 41.3 & 20.7 & 49.8 & 27.1 & 49.7 & 28.8 \\
+Crossover & 41.1 & 20.0 & 48.5 & 20.0 & 50.3 & 29.4 \\
+\bottomrule
+\end{tabular}
+\caption{Effect of augmentation in the text-only setting: macro-F1 and minimum per-class F1 (\%).}
+\label{tab:aug}
+\end{table}
+
+Per class (Table~\ref{tab:perclass}), the hybrid \svm has F1 above 81\% in every specialty; the lowest is \spec{General Medicine}, whose precision (71.2\%) is reduced by notes of other specialties predicted as \spec{General Medicine}. Figure~\ref{fig:cm} shows the confusion matrix of the text-only \svm: 612 of the 876 \spec{Surgery} notes are predicted as another specialty, mostly \spec{Orthopedic} (143), \spec{Cardiovascular-Pulmonary} (130), \spec{Gastroenterology} (120) and \spec{Obstetrics-Gynecology} (85), which are the most frequent duplicate pairs of Observation~2.
+
+\begin{table}[t]
+\centering\small
+\setlength{\tabcolsep}{2.6pt}
+\begin{tabular}{lccc@{\hspace{7pt}}lccc}
+\toprule
+Class & P & R & F1 & Class & P & R & F1 \\
+\midrule
+Cardio-Pulm & 95.4 & 89.6 & 92.4 & Ob-Gyn    & 96.2 & 92.6 & 94.3 \\
+Derm        & 100  & 92.0 & 95.8 & Ophthalm  & 100  & 100  & 100  \\
+Gastro      & 100  & 88.5 & 93.9 & Ortho     & 97.9 & 93.8 & 95.8 \\
+Gen Med     & 71.2 & 95.7 & 81.6 & Psych     & 95.1 & 97.5 & 96.3 \\
+Neuro       & 94.0 & 94.5 & 94.2 & Radiology & 97.7 & 97.2 & 97.5 \\
+Neurosurg   & 93.8 & 96.2 & 94.9 & Surgery   & 99.4 & 97.7 & 98.6 \\
+\bottomrule
+\end{tabular}
+\caption{Per-class precision, recall and F1 (\%) of the final system (hybrid \svm + \ros), out-of-fold.}
+\label{tab:perclass}
+\end{table}
+
+\begin{figure}[t]
 \centering
-\includegraphics[width=\columnwidth]{confusion_matrix_final.png}
-\caption{Out-of-fold Confusion Matrix of the Final System.}
+\includegraphics[width=\columnwidth]{results/confusion_matrix.png}
+\caption{Confusion matrix of the text-only \svm (\ros), out-of-fold (rows: gold, columns: predicted).}
 \label{fig:cm}
 \end{figure}
 
-\section{Critical Error Analysis and Limitations}
-Examining the confusion matrix (Figure \ref{fig:cm}) highlights two fundamental dataset limitations:
-\begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
-    \item \textbf{The \textit{Surgery} Trade-off:} The model misclassifies some \textit{Orthopedic} or \textit{Cardiovascular} surgeries as general \textit{Surgery}. For example, \textit{``Carpal Tunnel Release''} is labeled as \textit{Surgery} in some training rows and \textit{Orthopedic} in others. 
-    \item \textbf{Diagnostic Imaging:} Many misclassified \textit{Radiology} reports are predicted as \textit{Neurology} (e.g., brain MRIs), where the text focuses heavily on neurological pathology rather than radiological technique.
-\end{enumerate}
+\section{Discussion}
 
-\section{Conclusion}
-By combining multi-field representations, Word Dropout data augmentation, and cost-sensitive Logistic Regression, we achieved a highly interpretable pipeline that easily surpasses the 49\% accuracy and 25\% minimum per-class F1 requirements of the shared task.
+\textbf{Most common error.} Of the 132 errors of the final system, 80 are notes of other specialties predicted as \spec{General Medicine}, none of them with the specialty keyword. These are consultation notes with the SOAP structure (``chief complaint'', ``history of present illness'', ``review of systems''); this vocabulary is shared by all consultation notes and outweighs the few domain terms. Examples from our out-of-fold test set:
+
+\textbf{Ex.~1} (gold \spec{Cardiovascular-Pulmonary}, predicted \spec{General Medicine}): \emph{``REASON FOR VISIT: I have been asked to see this 63-year-old man with a dilated cardiomyopathy [...] He presents with a chief complaint of heart failure.''} The diagnosis is cardiological, but the referral template dominates. In \tfidf, ``cardiomyopathy'' is one term among many \spec{General Medicine} terms.
+
+\textbf{Ex.~2} (gold \spec{Surgery}, predicted \spec{Obstetrics-Gynecology}): \emph{``Repeat low transverse cervical cesarean section with delivery of a viable female neonate, bilateral tubal ligation and partial salpingectomy.''} We consider the prediction clinically correct; the gold label reflects the website category, not the content. The same applies to a \emph{``dual-chamber pacemaker implantation''} labelled \spec{Surgery} and predicted \spec{Cardiovascular-Pulmonary}.
+
+\textbf{Ex.~3} (gold \spec{Neurosurgery}, predicted \spec{Psychiatry-Psychology}): \emph{``first followup after shunt surgery [...] eight to ten years of progressive gait impairment, cognitive impairment, and decreased bladder control''}. The classifier ranks \spec{Neurology} first, which is plausible for normal-pressure hydrocephalus; since the same note is labelled \spec{Neurology} in the training folds, the duplicate rule excludes it, and the second choice is driven by ``cognitive''. This shows the limit of the rule: it removes the label already used but does not know which specialty the other copy belongs to.
+
+\textbf{Relation to the RQ.} The answer is that most of the measurable performance comes from the artifacts: from the text alone, linear models reach about 47\% accuracy on this split, and 61.5\% on notes without duplicates, while the artifacts raise accuracy to 94.9\%. Both rules use only given inputs and training labels, but neither reflects the ability to read clinical text~\cite{kaufman2012leakage}: on new notes a system would perform closer to the text-only figures. Augmentation is not the bottleneck: with a cost-sensitive loss, synthetic copies add nothing measurable; the limit is the label definition (``where the note was filed''), not the amount of minority-class data.
+
+\section{Future Work}
+
+Since the remaining errors concern the content of the note and not class frequency, we would (i)~weight the sections of the transcription differently (e.g.\ ``diagnosis'' and ``procedure'' over the history template), (ii)~replace \tfidf with a clinical pre-trained encoder to capture terms such as ``cardiomyopathy'' regardless of the surrounding template, and (iii)~evaluate the text-only model with group-aware splits that keep all copies of a note in the same fold, to measure generalisation to unseen notes.
+
+\renewcommand{\refname}{Bibliography}
+\bibliographystyle{apalike}
+\bibliography{biblio}
+
+\noindent\textbf{Use of LLMs.} Claude (Anthropic) was used as a coding assistant to write and refactor the experiment scripts and to revise the English of this paper. All design decisions, data inspections and reported numbers were checked by the authors by running the submitted code.
+
 \end{document}

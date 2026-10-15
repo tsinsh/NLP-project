@@ -1,0 +1,22 @@
+{
+  "n_train":2613,
+  "class_counts":{
+    "Surgery":876,
+    "Cardiovascular-Pulmonary":299,
+    "Orthopedic":292,
+    "Radiology":217,
+    "General Medicine":207,
+    "Gastroenterology":192,
+    "Neurology":181,
+    "Obstetrics-Gynecology":135,
+    "Neurosurgery":78,
+    "Ophthalmology":71,
+    "Psychiatry-Psychology":40,
+    "Dermatology":25
+  },
+  "kw_specialty_present":2172,
+  "kw_specialty_matches_label":2171,
+  "duplicate_groups":702,
+  "duplicate_rows":1469,
+  "duplicate_groups_conflicting":701
+}
