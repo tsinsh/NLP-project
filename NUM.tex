@@ -1,0 +1,92 @@
+\documentclass[10pt,twocolumn,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=1.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{microtype}
+
+\titlespacing*{\section}{0pt}{1.4ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{1.0ex}{0.4ex}
+\setlength{\columnsep}{0.55cm}
+
+\title{\vspace{-1.3cm}\textbf{Help the Doctor: Clinical Specialty Classification via Cost-Sensitive Logistic Regression and Random Word Dropout}}
+\author{Group NUM -- Natural Language Processing (2026) -- Instituto Superior Técnico}
+\date{\vspace{-0.9cm}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent Associating unstructured clinical notes with their corresponding medical specialty is a critical yet challenging Natural Language Processing (NLP) task due to severe class imbalance, overlapping surgical procedures, and noisy annotations. In this work, we address the 12-class medical specialty shared task. Moving beyond the weak TF-IDF baseline on case descriptions (37.70\% accuracy, 0.00\% min F1), we design a robust and highly interpretable pipeline based on weighted multi-field representations and a Balanced Logistic Regression classifier. To satisfy task constraints and prevent minority class collapse, we implement a Random Word Dropout data augmentation strategy. Evaluated via 5-fold stratified cross-validation on 2,613 valid clinical records, our system achieves an overall accuracy of \textbf{52.51\%} (well above the 49\% target) and elevates the worst-case per-class F1-score to \textbf{35.59\%} (surpassing the 25\% threshold across all 12 specialties).
+\end{abstract}
+
+\section{Introduction and Exploratory Data Analysis}
+The objective of this shared task is to automatically map clinical cases to one of 12 medical specialties. Each record comprises four textual fields: a brief \texttt{description}, the consultation/procedure \texttt{sample\_name}, the full free-text \texttt{transcription}, and a list of \texttt{keywords}. The test set contains 398 unlabelled clinical situations.
+
+A systematic inspection of \texttt{train.csv} revealed three critical data properties:
+\begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
+    \item \textbf{Malformed Records:} Raw parsing of \texttt{train.csv} exposed 3 corrupted rows where unescaped line breaks caused narrative fragments to spill into the \texttt{medical\_specialty} label column. Filtering strictly for the 12 valid target specialties yields $N = 2,613$ clean training instances.
+    \item \textbf{Extreme Class Imbalance:} Class frequencies span an imbalance ratio of $35:1$. \textit{Surgery} accounts for 33.5\% of the entire corpus ($876$ instances). Conversely, minority specialties such as \textit{Psychiatry-Psychology} ($40$) and \textit{Dermatology} ($25$) are severely underrepresented.
+    \item \textbf{Multi-Specialty Overlap:} Inspecting raw transcriptions reveals identical clinical notes assigned to multiple specialties. Because invasive procedures in \textit{Orthopedic} or \textit{Neurosurgery} are surgical by nature, identical operative reports are duplicated under both \textit{Surgery} and the organ-specific specialty.
+\end{enumerate}
+
+\section{Methodology}
+\subsection{Pre-processing and Feature Engineering}
+The reference baseline extracts word features solely from \texttt{description} using Porter stemming before training a Multinomial Naive Bayes classifier. However, aggressive stemming degrades clinical terminology by conflating distinct morphological suffixes, while ignoring \texttt{sample\_name}, \texttt{keywords}, and \texttt{transcription} discards vital diagnostic context. 
+
+To address missing values (\texttt{keywords} is missing in 15.4\% of instances) and varying field lengths, we normalize all four fields (lowercasing, retaining alphanumeric tokens) and construct a weighted text concatenation. We extract L2-normalized word-level TF-IDF $(1,2)$-grams ($\text{max\_features}=25,000$) with sublinear term-frequency scaling to dampen repetitive clinical templates.
+
+\subsection{Data Augmentation Process}
+Training linear classifiers on imbalanced data causes decision boundaries to skew toward majority classes. To satisfy the mandatory augmentation requirement and prevent minority class collapse, we designed a \textbf{Random Word Dropout} augmentation pipeline, applied strictly within the training folds during cross-validation:
+\begin{itemize}[noitemsep,topsep=2pt,leftmargin=*]
+    \item For every specialty with fewer than 150 training samples, we randomly sample existing instances to duplicate.
+    \item During duplication, we apply a stochastic word dropout function ($p = 0.15$) to the text.
+\end{itemize}
+This acts as a robust domain regularizer: randomly dropping 15\% of the words prevents the model from memorizing exact patient-specific ages or dosages in tiny classes like \textit{Dermatology}, forcing the classifier to rely on broader clinical vocabulary.
+
+\subsection{Classification Architecture}
+To maintain model interpretability while effectively handling the remaining class imbalance, we employ a \textbf{Logistic Regression} classifier equipped with inverse class-frequency weights (\texttt{class\_weight='balanced'}). This cost-sensitive learning approach penalizes misclassifications in minority classes much heavier than in majority classes, naturally pushing the F1-score of rare specialties above the 25\% threshold without requiring complex post-hoc threshold tuning.
+
+\section{Experimental Results}
+All models were evaluated using 5-fold Stratified Cross-Validation on \texttt{train.csv} ($N=2,613$).
+
+\begin{table}[htbp]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model Configuration} & \textbf{Accuracy} & \textbf{Macro F1} & \textbf{Min F1} \\
+\midrule
+1. Weak Baseline (MNB + Desc.) & 37.70\% & 11.89\% & 0.00\% \\
+\textbf{2. Balanced LogReg + Augmentation} & \textbf{52.51\%} & \textbf{54.65\%} & \textbf{35.59\%} \\
+\bottomrule
+\end{tabular}%
+}
+\caption{Overall 5-fold Stratified Cross-Validation metrics.}
+\label{tab:ablation}
+\end{table}
+
+As evidenced in Table \ref{tab:ablation}, the baseline collapses into predicting \textit{Surgery} for most cases, resulting in 0.00\% F1 on 7 out of 12 specialties. Incorporating all four fields, applying Word Dropout augmentation, and utilizing cost-sensitive Logistic Regression boosts overall accuracy to 52.51\% and lifts the minimum F1 to 35.59\%.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{confusion_matrix_final.png}
+\caption{Out-of-fold Confusion Matrix of the Final System.}
+\label{fig:cm}
+\end{figure}
+
+\section{Critical Error Analysis and Limitations}
+Examining the confusion matrix (Figure \ref{fig:cm}) highlights two fundamental dataset limitations:
+\begin{enumerate}[noitemsep,topsep=2pt,leftmargin=*]
+    \item \textbf{The \textit{Surgery} Trade-off:} The model misclassifies some \textit{Orthopedic} or \textit{Cardiovascular} surgeries as general \textit{Surgery}. For example, \textit{``Carpal Tunnel Release''} is labeled as \textit{Surgery} in some training rows and \textit{Orthopedic} in others. 
+    \item \textbf{Diagnostic Imaging:} Many misclassified \textit{Radiology} reports are predicted as \textit{Neurology} (e.g., brain MRIs), where the text focuses heavily on neurological pathology rather than radiological technique.
+\end{enumerate}
+
+\section{Conclusion}
+By combining multi-field representations, Word Dropout data augmentation, and cost-sensitive Logistic Regression, we achieved a highly interpretable pipeline that easily surpasses the 49\% accuracy and 25\% minimum per-class F1 requirements of the shared task.
+\end{document}
