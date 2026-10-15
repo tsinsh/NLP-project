@@ -23,7 +23,7 @@
 \title{Help the Doctor: How Much of Clinical Specialty Classification Is Reading the Text?}
 
 % AUTHORS
-\author{Group XX: Name~1 (25\%), Name~2 (25\%), Name~3 (25\%) and Name~4 (25\%)}
+\author{Group 33: Joel Graça (102256), Afonso Carvalho (116482) and Yann Vlk (120949). Contribution: Joel Graça 33.3\%, Afonso Carvalho 33.3\%, Yann Vlk 33.3\%}
 \affil{Instituto Superior Técnico, Universidade de Lisboa}
 \date{}
 
@@ -194,7 +194,7 @@ Neurosurg   & 93.8 & 96.2 & 94.9 & Surgery   & 99.4 & 97.7 & 98.6 \\
 
 \section{Future Work}
 
-Since the remaining errors concern the content of the note and not class frequency, we would (i)~weight the sections of the transcription differently (e.g.\ ``diagnosis'' and ``procedure'' over the history template), (ii)~replace \tfidf with a clinical pre-trained encoder to capture terms such as ``cardiomyopathy'' regardless of the surrounding template, and (iii)~evaluate the text-only model with group-aware splits that keep all copies of a note in the same fold, to measure generalisation to unseen notes.
+Since the remaining errors are not caused by class frequency, we would (i)~weight the sections of the transcription differently (e.g.\ ``diagnosis'' and ``procedure'' over the history template), (ii)~replace \tfidf with a clinical pre-trained encoder to capture terms such as ``cardiomyopathy'' regardless of the surrounding template, and (iii)~evaluate the text-only model with group-aware splits (all copies of a note in the same fold).
 
 \renewcommand{\refname}{Bibliography}
 \bibliographystyle{apalike}

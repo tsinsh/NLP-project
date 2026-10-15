@@ -9,7 +9,7 @@ Classification of clinical notes (MTSamples) into 12 medical specialties.
 | `common.py` | data loading, pre-processing, augmentation strategies, models, duplicate rule |
 | `experiments.py` | all 5-fold CV experiments of the paper → `results/` |
 | `main.py` | trains the final system on `train.csv` and writes `results.txt` |
-| `NUM.tex`, `biblio.bib` | paper (compile with `tectonic NUM.tex` or pdflatex + bibtex) |
+| `33.tex`, `biblio.bib` | paper (compile with `tectonic 33.tex` or pdflatex + bibtex) |
 | `results.txt` | predictions for `test_no_labels.csv`, one label per line, same order, no header |
 
 ## Reproduce
