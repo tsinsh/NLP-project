@@ -82,7 +82,7 @@ All results are obtained with stratified 5-fold cross-validation (\cv) on the 2,
 
 \subsection{Parameters/Hyperparameters}
 
-$C$ (inverse regularisation strength) and $\alpha$ (additive smoothing) were selected on the \cv macro-F1 of the text-only setting among $C\in\{0.05,0.1,0.3,0.5,1,3,10\}$ and $\alpha\in\{0.1,0.3,1\}$. Augmentation target: 150 notes per class; dropout probability 0.15. Implementation: scikit-learn~\cite{sklearn} (LIBLINEAR~\cite{fan2008liblinear} for \svm). The final model is trained on all 2,613 notes with the selected configuration (\svm + \ros).
+$C$ (inverse regularisation strength) and $\alpha$ (additive smoothing) were selected on the \cv macro-F1 of the text-only setting among $C\in\{0.05,0.1,0.3,0.5,1,3,10\}$ and $\alpha\in\{0.1,0.3,1\}$. Augmentation target: 150 notes per class; dropout probability 0.15. Implementation: scikit-learn~\cite{sklearn} (LIBLINEAR~\cite{fan2008liblinear} for \svm), pandas~\cite{pandas}, NumPy~\cite{numpy}, NLTK~\cite{nltk} (Porter stemmer), Matplotlib~\cite{matplotlib} and seaborn~\cite{seaborn}. The final model is trained on all 2,613 notes with the selected configuration (\svm + \ros).
 
 \section{Results}
 
@@ -194,7 +194,7 @@ Neurosurg   & 93.8 & 96.2 & 94.9 & Surgery   & 99.4 & 97.7 & 98.6 \\
 
 \section{Future Work}
 
-Since the remaining errors are not caused by class frequency, we would (i)~weight the sections of the transcription differently (e.g.\ ``diagnosis'' and ``procedure'' over the history template), (ii)~replace \tfidf with a clinical pre-trained encoder to capture terms such as ``cardiomyopathy'' regardless of the surrounding template, and (iii)~evaluate the text-only model with group-aware splits (all copies of a note in the same fold).
+Since the remaining errors are not caused by class frequency, we would (i)~give more weight to the ``diagnosis'' and ``procedure'' sections, (ii)~replace \tfidf with a clinical pre-trained encoder, less sensitive to the consultation template, and (iii)~keep all copies of a note in the same fold.
 
 \renewcommand{\refname}{Bibliography}
 \bibliographystyle{apalike}
